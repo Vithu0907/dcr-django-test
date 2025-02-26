@@ -106,6 +106,11 @@ class Command(BaseCommand):
                     regions_created += 1
                     self.stdout.write(f"Created new region: {region_name}")
                 
+                top_level_domains = country_data.get("topLevelDomain", [])
+                capital = country_data.get("capital", "")
+                
+                top_level_domains_json = json.dumps(top_level_domains) if top_level_domains else "[]"
+                
                 country, country_created = Country.objects.update_or_create(
                     name=country_data["name"],
                     defaults={
@@ -113,6 +118,8 @@ class Command(BaseCommand):
                         "alpha3Code": country_data["alpha3Code"],
                         "population": country_data.get("population", 0),
                         "region": region,
+                        "top_level_domains_json": top_level_domains_json,
+                        "capital": capital,
                     },
                 )
                 
@@ -122,6 +129,11 @@ class Command(BaseCommand):
                 else:
                     countries_updated += 1
                     self.stdout.write(f"Updated existing country: {country.name}")
+                
+                self.stdout.write(
+                    f"  - Capital: {capital}\n"
+                    f"  - Top Level Domains: {top_level_domains}"
+                )
                     
             self.stdout.write(
                 f"Summary: Created {regions_created} regions, "

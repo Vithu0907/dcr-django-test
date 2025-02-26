@@ -117,7 +117,7 @@ class StatsViewTestCase(TestCase):
     
 class UpdateCountryListingCommandTest(TestCase):
     """Test cases for the update_country_listing management command."""
-
+    
     def setUp(self):
         """Set up test data."""
         self.url = "https://storage.googleapis.com/dcr-django-test/countries.json"
@@ -127,7 +127,9 @@ class UpdateCountryListingCommandTest(TestCase):
                 "alpha2Code": "TC",
                 "alpha3Code": "TCO",
                 "population": 1000000,
-                "region": "Test Region"
+                "region": "Test Region",
+                "topLevelDomain": [".tc"],
+                "capital": "Test City"
             }
         ]
 
@@ -137,14 +139,14 @@ class UpdateCountryListingCommandTest(TestCase):
         mock_response = MagicMock()
         mock_response.json.return_value = self.test_data
         mock_get.return_value = mock_response
-
+        
         out = StringIO()
         call_command("update_country_listing", stdout=out)
-
+        
         mock_get.assert_called_once_with(
             self.url, timeout=30
         )
-
+        
         self.assertEqual(Region.objects.count(), 1)
         self.assertEqual(Country.objects.count(), 1)
         
@@ -155,4 +157,31 @@ class UpdateCountryListingCommandTest(TestCase):
         self.assertEqual(country.alpha3Code, "TCO")
         self.assertEqual(country.population, 1000000)
         self.assertEqual(country.region, region)
-
+        
+        self.assertEqual(country.capital, "Test City")
+        self.assertEqual(country.top_level_domains, [".tc"])
+    
+    @patch("countries.management.commands.update_country_listing.requests.get")
+    def test_command_handles_missing_new_fields(self, mock_get):
+        """Test that the command handles missing new fields gracefully."""
+        limited_data = [
+            {
+                "name": "Limited Country",
+                "alpha2Code": "LC",
+                "alpha3Code": "LCO",
+                "population": 500000,
+                "region": "Limited Region"
+                # Missing topLevelDomain and capital
+            }
+        ]
+        
+        mock_response = MagicMock()
+        mock_response.json.return_value = limited_data
+        mock_get.return_value = mock_response
+        
+        call_command("update_country_listing")
+        
+        country = Country.objects.get(alpha2Code="LC")
+        
+        self.assertEqual(country.capital, "")
+        self.assertEqual(country.top_level_domains, [])
