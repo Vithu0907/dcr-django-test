@@ -1,7 +1,14 @@
+import json
+from io import StringIO
+from unittest.mock import patch, MagicMock
+
 from django.test import TestCase, Client
 from django.urls import reverse
-import json
+from django.core.management import call_command
+from django.core.management.base import CommandError
+
 from .models import Region, Country
+
 
 class StatsViewTestCase(TestCase):
     """Test cases for the stats view."""
@@ -108,3 +115,44 @@ class StatsViewTestCase(TestCase):
             self.assertIsInstance(region['number_countries'], int)
             self.assertIsInstance(region['total_population'], int)
     
+class UpdateCountryListingCommandTest(TestCase):
+    """Test cases for the update_country_listing management command."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.url = "https://storage.googleapis.com/dcr-django-test/countries.json"
+        self.test_data = [
+            {
+                "name": "Test Country",
+                "alpha2Code": "TC",
+                "alpha3Code": "TCO",
+                "population": 1000000,
+                "region": "Test Region"
+            }
+        ]
+
+    @patch("countries.management.commands.update_country_listing.requests.get")
+    def test_command_fetches_and_processes_data(self, mock_get):
+        """Test that the command fetches and processes data correctly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = self.test_data
+        mock_get.return_value = mock_response
+
+        out = StringIO()
+        call_command("update_country_listing", stdout=out)
+
+        mock_get.assert_called_once_with(
+            self.url, timeout=30
+        )
+
+        self.assertEqual(Region.objects.count(), 1)
+        self.assertEqual(Country.objects.count(), 1)
+        
+        region = Region.objects.get(name="Test Region")
+        country = Country.objects.get(alpha2Code="TC")
+        
+        self.assertEqual(country.name, "Test Country")
+        self.assertEqual(country.alpha3Code, "TCO")
+        self.assertEqual(country.population, 1000000)
+        self.assertEqual(country.region, region)
+
